@@ -1,0 +1,9 @@
+Government Security Audit Report
+========================================
+
+URL: https://amazon.com
+Risk: LOW
+Score: 70
+
+Findings:
+- Missing headers: ['CSP', 'XFO']

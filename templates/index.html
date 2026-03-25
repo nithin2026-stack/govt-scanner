@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GovScan Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #0b0f1a;
+            color: #fff;
+            text-align: center;
+        }
+
+        h1 {
+            color: #4da6ff;
+        }
+
+        .box {
+            margin: 20px auto;
+            padding: 20px;
+            width: 80%;
+            background: #111827;
+            border-radius: 10px;
+        }
+
+        input {
+            padding: 10px;
+            width: 60%;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #4da6ff;
+            border: none;
+            color: white;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #2d8cff;
+        }
+
+        .score {
+            font-size: 50px;
+            margin: 20px;
+            text-shadow: 0 0 10px #4da6ff;
+        }
+
+        .low { color: #00ff88; }
+        .medium { color: orange; }
+        .high { color: red; }
+
+        .cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .card {
+            background: #1f2937;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        canvas {
+            box-shadow: 0 0 20px rgba(77,166,255,0.3);
+        }
+    </style>
+</head>
+
+<body>
+
+<h1 id="title">🔐 GovScan Dashboard</h1>
+
+<div class="box">
+    <input id="url" placeholder="Enter URL">
+    <button onclick="scan()" id="scanBtn">Scan</button>
+    <button onclick="toggleLang()">தமிழ் / English</button>
+
+    <!-- GOV QUICK SELECT -->
+    <div style="margin-top:10px;">
+        <button onclick="setUrl('https://tn.gov.in')">TN Govt</button>
+        <button onclick="setUrl('https://elcot.in')">ELCOT</button>
+        <button onclick="setUrl('https://nic.in')">NIC</button>
+    </div>
+</div>
+
+<div class="box">
+    <div id="score" class="score">--</div>
+    <div id="risk"></div>
+</div>
+
+<!-- ALERT -->
+<div class="box" id="alertBox" style="display:none;">
+    <div id="alertText"></div>
+</div>
+
+<div class="box cards">
+    <div class="card" id="ssl"></div>
+    <div class="card" id="headers"></div>
+    <div class="card" id="ports"></div>
+    <div class="card" id="vulns"></div>
+</div>
+
+<!-- PRIORITY -->
+<div class="box">
+    <h3>🚨 Priority Fix Order</h3>
+    <div id="priority"></div>
+</div>
+
+<!-- MEASURES -->
+<div class="box">
+    <h3>🛠 Preventive Measures</h3>
+    <div id="measures"></div>
+</div>
+
+<div class="box">
+    <button onclick="downloadReport()" id="reportBtn">Download Report</button>
+</div>
+
+<!-- GRAPH -->
+<div class="box">
+    <h3 id="trendTitle">📊 Security Trend</h3>
+    <canvas id="trendChart"></canvas>
+</div>
+
+<script>
+let currentUrl = "";
+let chartInstance = null;
+let lang = "en";
+
+const t = {
+    en: {
+        title: "🔐 GovScan Dashboard",
+        scan: "Scan",
+        report: "Download Report",
+        ssl: "SSL",
+        headers: "Missing Headers",
+        ports: "Open Ports",
+        vulns: "SQLi",
+        trend: "📊 Security Trend",
+        low: "LOW",
+        medium: "MEDIUM",
+        high: "HIGH"
+    },
+    ta: {
+        title: "🔐 அரசு பாதுகாப்பு கண்காணிப்பு",
+        scan: "சோதிக்கவும்",
+        report: "அறிக்கை பதிவிறக்கவும்",
+        ssl: "SSL பாதுகாப்பு",
+        headers: "இல்லாத தலைப்புகள்",
+        ports: "திறந்த போர்ட்கள்",
+        vulns: "SQL தாக்குதல்",
+        trend: "📊 பாதுகாப்பு நிலை மாற்றம்",
+        low: "குறைவு",
+        medium: "நடுத்தரம்",
+        high: "அதிகம்"
+    }
+};
+
+function setUrl(url){
+    document.getElementById("url").value = url;
+}
+
+// LANGUAGE
+function toggleLang() {
+    lang = (lang === "en") ? "ta" : "en";
+    applyLang();
+}
+
+function applyLang() {
+    document.getElementById("title").innerText = t[lang].title;
+    document.getElementById("scanBtn").innerText = t[lang].scan;
+    document.getElementById("reportBtn").innerText = t[lang].report;
+    document.getElementById("trendTitle").innerText = t[lang].trend;
+}
+
+// SCAN
+async function scan() {
+    currentUrl = document.getElementById("url").value;
+
+    document.getElementById("score").innerText = "Scanning...";
+
+    let res = await fetch(`/scan?url=${currentUrl}`);
+    let data = await res.json();
+
+    show(data);
+    loadTrend(data);
+}
+
+// MAIN DISPLAY
+function show(data) {
+    let score = data.risk.score;
+    let risk = data.risk.risk;
+
+    document.getElementById("score").innerText = score;
+
+    let riskText = risk;
+    if (lang === "ta") {
+        if (risk === "LOW") riskText = t.ta.low;
+        if (risk === "MEDIUM") riskText = t.ta.medium;
+        if (risk === "HIGH") riskText = t.ta.high;
+    }
+
+    let riskEl = document.getElementById("risk");
+    riskEl.innerText = riskText;
+    riskEl.className = risk.toLowerCase();
+
+    document.getElementById("ssl").innerHTML =
+        `<b>${t[lang].ssl}:</b> ${data.data.ssl.valid}`;
+
+    document.getElementById("headers").innerHTML =
+        `<b>${t[lang].headers}:</b> ${data.data.headers.missing}`;
+
+    document.getElementById("ports").innerHTML =
+        `<b>${t[lang].ports}:</b> ${data.data.ports.open_ports}`;
+
+    document.getElementById("vulns").innerHTML =
+        `<b>${t[lang].vulns}:</b> ${data.data.vulns.sqli}`;
+
+    // ALERT
+    let alertBox = document.getElementById("alertBox");
+    let alertText = document.getElementById("alertText");
+
+    alertBox.style.display = "none";
+
+    if (score < 50) {
+        alertBox.style.display = "block";
+        alertBox.style.border = "2px solid red";
+        alertText.innerText = "⚠️ HIGH RISK — Fix immediately!";
+    } else if (score < 70) {
+        alertBox.style.display = "block";
+        alertBox.style.border = "2px solid orange";
+        alertText.innerText = "⚠️ Medium risk — improvements needed";
+    }
+
+    // PRIORITY
+    let priority = [];
+
+    if (!data.data.ssl.valid)
+        priority.push({level:"CRITICAL", text:"Enable HTTPS (SSL missing)"});
+
+    if (data.data.vulns.sqli)
+        priority.push({level:"CRITICAL", text:"Fix SQL Injection vulnerability"});
+
+    if (Object.keys(data.data.ports.open_ports).length > 0)
+        priority.push({level:"HIGH", text:"Close exposed ports"});
+
+    if (data.data.headers.missing.length > 0)
+        priority.push({level:"MEDIUM", text:"Add security headers"});
+
+    if (priority.length === 0)
+        priority.push({level:"LOW", text:"System secure"});
+
+    let phtml = "";
+    for (let i=0;i<priority.length;i++){
+        let p=priority[i];
+        let color = p.level==="CRITICAL"?"red":p.level==="HIGH"?"orange":p.level==="MEDIUM"?"yellow":"green";
+
+        phtml += `<div style="margin:8px;border-left:5px solid ${color};padding:10px;text-align:left;">
+        <b>${i+1}. ${p.level}</b> → ${p.text}</div>`;
+    }
+
+    document.getElementById("priority").innerHTML = phtml;
+
+    // MEASURES
+    let measures = [];
+
+    if (!data.data.ssl.valid)
+        measures.push("Enable HTTPS using SSL certificate");
+
+    if (data.data.headers.missing.length > 0)
+        measures.push("Add headers like CSP, HSTS");
+
+    if (Object.keys(data.data.ports.open_ports).length > 0)
+        measures.push("Close unused ports and secure firewall");
+
+    if (data.data.vulns.sqli)
+        measures.push("Use prepared statements to prevent SQL injection");
+
+    if (measures.length === 0)
+        measures.push("No major issues detected");
+
+    let mhtml="";
+    for(let m of measures){
+        mhtml += `<div style="margin:5px;">✔ ${m}</div>`;
+    }
+
+    document.getElementById("measures").innerHTML = mhtml;
+}
+
+// GRAPH
+async function loadTrend(data) {
+    let res = await fetch('/trend');
+    let trendData = await res.json();
+
+    if (!trendData || trendData.length === 0) return;
+
+    let labels = trendData.map(d => d.time);
+    let scores = trendData.map(d => Number(d.score));
+
+    let ctx = document.getElementById('trendChart').getContext('2d');
+
+    if (chartInstance) chartInstance.destroy();
+
+    let color = data.risk.score < 40 ? "red" :
+                data.risk.score < 70 ? "orange" : "green";
+
+    let gradient = ctx.createLinearGradient(0,0,0,400);
+    gradient.addColorStop(0,color);
+    gradient.addColorStop(1,"rgba(0,0,0,0)");
+
+    chartInstance = new Chart(ctx,{
+        type:'line',
+        data:{
+            labels:labels,
+            datasets:[{
+                label:'Security Score',
+                data:scores,
+                borderColor:color,
+                backgroundColor:gradient,
+                fill:true,
+                tension:0.4
+            }]
+        },
+        options:{
+            animation:{duration:1500},
+            scales:{y:{min:0,max:100}}
+        }
+    });
+}
+
+// LOAD GRAPH ON START
+window.onload = function () {
+    loadTrend({ risk: { score: 70 } });
+};
+
+// REPORT
+function downloadReport(){
+    window.location.href = `/report?url=${currentUrl}`;
+}
+</script>
+
+</body>
+</html>
