@@ -1,9 +1,10 @@
 Government Security Audit Report
 ========================================
 
-URL: https://amazon.com
-Risk: LOW
-Score: 70
+URL: https://github.com
+Risk: MEDIUM
+Score: 55
 
 Findings:
-- Missing headers: ['CSP', 'XFO']
+- Open ports: [22, 3306, 5432]
+- SQL Injection risk detected
